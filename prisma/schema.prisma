@@ -1,0 +1,110 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  extensions = [uuidOssp(map: "uuid-ossp"), pgcrypto]
+}
+
+model User {
+  id             String        @id @default(cuid())
+  username       String        @unique
+  balance        Float         @default(1000)
+  createdAt      DateTime      @default(now())
+  
+  orders         Order[]
+  tradesAsBuyer  Trade[]       @relation("BuyerTrades")
+  tradesAsSeller Trade[]       @relation("SellerTrades")
+  positions      Position[]
+  transactions   Transaction[]
+}
+
+model Market {
+  id        String     @id @default(cuid())
+  question  String
+  yesPool   Float      @default(0)
+  noPool    Float      @default(0)
+  probYes   Float      @default(0.5)
+  probNo    Float      @default(0.5)
+  createdAt DateTime   @default(now())
+  
+  orders    Order[]
+  trades    Trade[]
+  positions Position[]
+}
+
+enum Side {
+  YES
+  NO
+}
+
+enum OrderType {
+  MARKET
+  LIMIT
+}
+
+enum OrderStatus {
+  OPEN
+  PARTIAL
+  FILLED
+  CANCELLED
+}
+
+model Order {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id])
+  marketId  String
+  market    Market      @relation(fields: [marketId], references: [id])
+  side      Side
+  type      OrderType
+  price     Float?
+  amount    Float
+  filled    Float       @default(0)
+  status    OrderStatus @default(OPEN)
+  createdAt DateTime    @default(now())
+
+  @@index([marketId, price])
+}
+
+model Trade {
+  id        String   @id @default(cuid())
+  marketId  String
+  market    Market   @relation(fields: [marketId], references: [id])
+  buyerId   String
+  buyer     User     @relation("BuyerTrades", fields: [buyerId], references: [id])
+  sellerId  String
+  seller    User     @relation("SellerTrades", fields: [sellerId], references: [id])
+  price     Float
+  amount    Float
+  side      Side
+  createdAt DateTime @default(now())
+
+  @@index([marketId, createdAt])
+}
+
+model Position {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  marketId  String
+  market    Market   @relation(fields: [marketId], references: [id])
+  yesAmount Float    @default(0)
+  noAmount  Float    @default(0)
+
+  @@unique([userId, marketId])
+}
+
+model Transaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Float
+  type      String   // TRADE | DEPOSIT | WITHDRAW | AI
+  marketId  String?
+  createdAt DateTime @default(now())
+}
